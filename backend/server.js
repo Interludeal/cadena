@@ -8,7 +8,11 @@ const { seedInitialPrice } = require('./src/services/priceService')
 
 const app = express()
 
-app.use(cors({ origin: 'http://localhost:5173' }))
+app.use(
+  cors({
+    origin: ['http://localhost:5173', 'https://cadena-three.vercel.app'],
+  }),
+)
 app.use(express.json())
 
 mongoose
