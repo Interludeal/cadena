@@ -1,9 +1,5 @@
 import { useState, useEffect } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
-} from "recharts";
-import {
   TrendingUp, TrendingDown, Gift, Shield,
   Newspaper, AlertTriangle, ExternalLink,
   MapPin, User, Wallet, Clock, BarChart2,
@@ -12,21 +8,23 @@ import { MapContainer, TileLayer, Circle, Marker, Popup, useMap } from "react-le
 import L from "leaflet";
 import { useWallet } from "../contexts/WalletContext";
 import { useMarket } from "../contexts/MarketContext";
+import MarketCandlestickChart from "./MarketCandlestickChart";
 import api from "../api/client";
 
 /* ──────────────────── 차트 섹션 ──────────────────── */
 function DashboardChart() {
   const { currentPrice, priceHistory } = useMarket();
-
-  const chartData = priceHistory.map((p) => ({
-    time: new Date(p.date || p.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }),
-    price: p.price,
-  }));
+  const [displayPrice, setDisplayPrice] = useState(currentPrice);
+  const [chartStats, setChartStats] = useState(null);
 
   const prev = priceHistory.length >= 2 ? priceHistory[priceHistory.length - 2]?.price : currentPrice;
-  const change = currentPrice - (prev || currentPrice);
+  const change = displayPrice - (prev || displayPrice);
   const pct = prev ? ((change / prev) * 100).toFixed(2) : "0.00";
   const isUp = change >= 0;
+
+  useEffect(() => {
+    setDisplayPrice(currentPrice);
+  }, [currentPrice]);
 
   return (
     <div className="db-card">
@@ -34,63 +32,33 @@ function DashboardChart() {
         <div>
           <p className="db-label">CADENA / ETH</p>
           <div className="db-price-row">
-            <span className="db-price-big">{currentPrice.toFixed(6)} ETH</span>
+            <span className="db-price-big">{displayPrice.toFixed(6)} ETH</span>
             <span className={`db-badge-pct ${isUp ? "up" : "down"}`}>
               {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
               {isUp ? "+" : ""}{pct}%
             </span>
           </div>
         </div>
-        <div className="db-chart-right">
-          <p className="db-label">데이터 수</p>
-          <p className="db-vol">{priceHistory.length}개</p>
-        </div>
       </div>
 
       <div className="db-chart-wrap">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="cdaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#EAB308" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#EAB308" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a4a" />
-            <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 11 }} />
-            <YAxis
-              stroke="#94a3b8"
-              tick={{ fontSize: 11 }}
-              tickFormatter={(v) => `${Number(v).toFixed(4)} ETH`}
-              width={85}
-            />
-            <Tooltip
-              contentStyle={{ backgroundColor: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: 8 }}
-              labelStyle={{ color: "#94a3b8" }}
-              formatter={(v) => [`${Number(v).toFixed(6)} ETH`, "CDA"]}
-            />
-            <Area type="monotone" dataKey="price" stroke="#EAB308" strokeWidth={2} fill="url(#cdaGrad)" />
-          </AreaChart>
-        </ResponsiveContainer>
+        <MarketCandlestickChart
+          priceHistory={priceHistory}
+          initialPrice={currentPrice}
+          onDisplayPriceChange={setDisplayPrice}
+          onStatsChange={setChartStats}
+        />
       </div>
 
-      {priceHistory.length > 0 && (
+      {chartStats && (
         <div className="db-chart-stats">
           <div>
             <p className="db-label">최고가</p>
-            <p className="db-stat-val up">{Math.max(...priceHistory.map((p) => p.price)).toFixed(6)} ETH</p>
+            <p className="db-stat-val up">{chartStats.high.toFixed(6)} ETH</p>
           </div>
           <div>
             <p className="db-label">최저가</p>
-            <p className="db-stat-val down">{Math.min(...priceHistory.map((p) => p.price)).toFixed(6)} ETH</p>
-          </div>
-          <div>
-            <p className="db-label">시작가</p>
-            <p className="db-stat-val">{priceHistory[0]?.price.toFixed(6)} ETH</p>
-          </div>
-          <div>
-            <p className="db-label">현재가</p>
-            <p className="db-stat-val yellow">{currentPrice.toFixed(6)} ETH</p>
+            <p className="db-stat-val down">{chartStats.low.toFixed(6)} ETH</p>
           </div>
         </div>
       )}
@@ -208,7 +176,7 @@ function DashboardReward({ onOpenLocation }) {
 
 /* ──────────────────── 보안뉴스 섹션 ──────────────────── */
 function DashboardNews() {
-  const { news, currentPrice } = useMarket();
+  const { news } = useMarket();
 
   const severityOf = (title = "") => {
     const t = title.toLowerCase();
@@ -232,14 +200,6 @@ function DashboardNews() {
         <div className="db-threat-badge">
           <AlertTriangle size={13} />
           <span>{news.length}건</span>
-        </div>
-      </div>
-
-      <div className="db-news-meta-row">
-        <div className="db-news-meta-chip yellow-chip">
-          <TrendingUp size={13} color="#EAB308" />
-          <p className="db-label">현재가</p>
-          <p className="yellow">{currentPrice.toFixed(6)} ETH</p>
         </div>
       </div>
 
