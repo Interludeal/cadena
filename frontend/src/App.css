@@ -1425,17 +1425,20 @@ input, button {
 .db-badge-pct.up   { background: rgba(74,222,128,.18); color: #4ade80; }
 .db-badge-pct.down { background: rgba(248,113,113,.18); color: #f87171; }
 
-.db-chart-right { text-align: right; }
-.db-vol { font-size: 1.1rem; font-weight: 600; margin-top: 0.25rem; }
-
 .db-chart-wrap {
   height: 240px;
   margin-bottom: 1rem;
 }
 
+.market-candlestick-chart {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
 .db-chart-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
@@ -1543,23 +1546,6 @@ input, button {
   font-size: 0.78rem;
   color: #f87171;
 }
-
-.db-news-meta-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
-}
-
-.db-news-meta-chip {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 0.75rem;
-  border-radius: 12px;
-  border: 1px solid transparent;
-}
-.db-news-meta-chip p { font-size: 0.9rem; font-weight: 700; margin: 0; }
 
 .db-news-list {
   display: flex;

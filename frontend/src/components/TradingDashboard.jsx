@@ -1,19 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useWallet } from '../contexts/WalletContext'
 import { useMarket } from '../contexts/MarketContext'
-import { createChart } from 'lightweight-charts'
+import MarketCandlestickChart from './MarketCandlestickChart'
 import api from '../api/client'
 import { ethers } from 'ethers'
-
-const MIN_PRICE = 0.0005
-const MAX_PRICE = 0.001
-const RANDOM_TICK_RANGE = 0.000012
-const CHART_STORAGE_KEY = 'cadena-trade-chart-candles'
-const MAX_STORED_CANDLES = 180
-
-function clampPrice(price) {
-  return Number(Math.max(MIN_PRICE, Math.min(MAX_PRICE, price)).toFixed(7))
-}
 
 function getSentimentMeta(score) {
   const absScore = Math.abs(score)
@@ -30,52 +20,6 @@ function getSentimentMeta(score) {
   return { label: '중립', type: 'neutral', direction: '변화 없음', multiplier }
 }
 
-function makeHistoryCandle(record) {
-  const price = record.price
-  const previousPrice = record.previousPrice || price
-
-  return {
-    time: Math.floor(new Date(record.date || record.createdAt).getTime() / 1000),
-    open: previousPrice,
-    high: Math.max(previousPrice, price),
-    low: Math.min(previousPrice, price),
-    close: price,
-  }
-}
-
-function loadStoredCandles() {
-  try {
-    const raw = localStorage.getItem(CHART_STORAGE_KEY)
-    if (!raw) return []
-
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-
-    return parsed
-      .filter((candle) => (
-        Number.isFinite(candle.time) &&
-        Number.isFinite(candle.open) &&
-        Number.isFinite(candle.high) &&
-        Number.isFinite(candle.low) &&
-        Number.isFinite(candle.close)
-      ))
-      .slice(-MAX_STORED_CANDLES)
-  } catch {
-    return []
-  }
-}
-
-function saveStoredCandles(candles) {
-  try {
-    localStorage.setItem(
-      CHART_STORAGE_KEY,
-      JSON.stringify(candles.slice(-MAX_STORED_CANDLES)),
-    )
-  } catch {
-    // Ignore storage quota or privacy-mode errors.
-  }
-}
-
 export default function TradingDashboard() {
   const { user, ethBalance, fetchUser, fetchEthBalance, account } = useWallet()
   const {
@@ -89,108 +33,14 @@ export default function TradingDashboard() {
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState(null)
-  const [displayPrice, setDisplayPrice] = useState(MIN_PRICE)
+  const [displayPrice, setDisplayPrice] = useState(0.0005)
   const [sentimentPopup, setSentimentPopup] = useState(null)
 
-  const chartRef = useRef(null)
-  const chartInstance = useRef(null)
-  const seriesRef = useRef(null)
-  const candlesRef = useRef([])
-  const lastCandleRef = useRef(null)
-  const hasFitContentRef = useRef(false)
-  const lastHistoryKeyRef = useRef('')
   const lastPopupUpdateRef = useRef(null)
 
   useEffect(() => {
     setDisplayPrice(currentPrice)
   }, [currentPrice])
-
-  useEffect(() => {
-    if (!chartRef.current) return
-
-    chartInstance.current = createChart(chartRef.current, {
-      layout: {
-        background: { color: '#0f0f1a' },
-        textColor: '#e0e0e0',
-      },
-      grid: {
-        vertLines: { color: '#1a1a2e' },
-        horzLines: { color: '#1a1a2e' },
-      },
-      width: chartRef.current.clientWidth,
-      height: 280,
-      timeScale: { timeVisible: true, barSpacing: 50 },
-      crosshair: { mode: 0 },
-    })
-
-    seriesRef.current = chartInstance.current.addCandlestickSeries({
-      priceFormat: {
-        type: 'price',
-        precision: 7,
-        minMove: 0.0000001,
-      },
-      upColor: '#ef4444',
-      downColor: '#3b82f6',
-      borderUpColor: '#ef4444',
-      borderDownColor: '#3b82f6',
-      wickUpColor: '#ef4444',
-      wickDownColor: '#3b82f6',
-    })
-
-    const storedCandles = loadStoredCandles()
-    if (storedCandles.length > 0) {
-      candlesRef.current = storedCandles
-      lastCandleRef.current = storedCandles[storedCandles.length - 1]
-      seriesRef.current.setData(storedCandles)
-      setDisplayPrice(lastCandleRef.current.close)
-
-      chartInstance.current?.timeScale().fitContent()
-      hasFitContentRef.current = true
-    }
-
-    const handleResize = () => {
-      if (!chartRef.current || !chartInstance.current) return
-      chartInstance.current.applyOptions({ width: chartRef.current.clientWidth })
-    }
-
-    window.addEventListener('resize', handleResize)
-
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      chartInstance.current?.remove()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!seriesRef.current || priceHistory.length === 0) return
-
-    const historyKey = priceHistory
-      .map((record) => record.createdAt || record.date || record._id)
-      .join('|')
-
-    if (historyKey === lastHistoryKeyRef.current) return
-    lastHistoryKeyRef.current = historyKey
-
-    const historyCandles = priceHistory.map(makeHistoryCandle)
-    const candleMap = new Map(candlesRef.current.map((candle) => [candle.time, candle]))
-
-    for (const candle of historyCandles) {
-      candleMap.set(candle.time, candle)
-    }
-
-    const mergedCandles = Array.from(candleMap.values())
-      .sort((a, b) => a.time - b.time)
-      .slice(-MAX_STORED_CANDLES)
-    candlesRef.current = mergedCandles
-    lastCandleRef.current = mergedCandles[mergedCandles.length - 1] || null
-    seriesRef.current.setData(mergedCandles)
-    saveStoredCandles(mergedCandles)
-
-    if (!hasFitContentRef.current) {
-      chartInstance.current?.timeScale().fitContent()
-      hasFitContentRef.current = true
-    }
-  }, [priceHistory])
 
   useEffect(() => {
     if (!priceUpdatedAt || priceStats.newsCount <= 0) return
@@ -214,56 +64,6 @@ export default function TradingDashboard() {
     const timeout = setTimeout(() => setSentimentPopup(null), 5000)
     return () => clearTimeout(timeout)
   }, [priceUpdatedAt, priceStats])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDisplayPrice((prev) => {
-        const newPrice = clampPrice(prev + (Math.random() - 0.5) * RANDOM_TICK_RANGE)
-
-        try {
-          if (seriesRef.current) {
-            const time = Math.floor(Date.now() / 1000)
-            const last = lastCandleRef.current
-
-            if (last && last.time === time) {
-              const updated = {
-                time,
-                open: last.open,
-                high: Math.max(last.high, newPrice),
-                low: Math.min(last.low, newPrice),
-                close: newPrice,
-              }
-
-              const lastIndex = candlesRef.current.length - 1
-              if (lastIndex >= 0) candlesRef.current[lastIndex] = updated
-              lastCandleRef.current = updated
-              seriesRef.current.update(updated)
-              saveStoredCandles(candlesRef.current)
-            } else {
-              const candle = {
-                time,
-                open: last ? last.close : newPrice,
-                high: newPrice,
-                low: newPrice,
-                close: newPrice,
-              }
-
-              candlesRef.current = [...candlesRef.current, candle].slice(-MAX_STORED_CANDLES)
-              lastCandleRef.current = candle
-              seriesRef.current.update(candle)
-              saveStoredCandles(candlesRef.current)
-            }
-          }
-        } catch {
-          // The chart can be unavailable for a moment during startup.
-        }
-
-        return newPrice
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [])
 
   const handleTrade = async () => {
     if (!amount || Number(amount) <= 0) return
@@ -332,7 +132,12 @@ export default function TradingDashboard() {
             </div>
           </div>
         </div>
-        <div ref={chartRef} className="chart-container-full" />
+        <MarketCandlestickChart
+          priceHistory={priceHistory}
+          initialPrice={currentPrice}
+          onDisplayPriceChange={setDisplayPrice}
+          className="chart-container-full"
+        />
         {sentimentPopup && (
           <div className={`sentiment-popup ${sentimentPopup.type}`}>
             <span>{sentimentPopup.text}</span>
